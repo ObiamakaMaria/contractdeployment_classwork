@@ -1,80 +1,98 @@
-import React, { useState, useEffect } from "react";
-import Web3 from "web3";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import abi from "./abi.json";
-
-const CONTRACT_ADDRESS = "0x22ee52a264e34cd11c709526ffef469dce2ffa95";
+import { useState } from 'react';
+import abi from './abi.json';  
+import { ethers } from 'ethers';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import './App.css';
 
 function App() {
-  const [account, setAccount] = useState("");
-  const [contract, setContract] = useState(null);
-  const [balance, setBalance] = useState(0);
-  const [amount, setAmount] = useState("");
+  const [depositAmount, setDepositAmount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [balance, setBalance] = useState('0');
+  const contractAddress = '0x22ee52a264e34cd11c709526ffef469dce2ffa95';
 
-  useEffect(() => {
-    loadBlockchainData();
-  }, []);
+  async function requestAccounts() {
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+  }
 
-  const loadBlockchainData = async () => {
-    if (window.ethereum) {
-      const web3 = new Web3(window.ethereum);
-      await window.ethereum.request({ method: "eth_requestAccounts" });
-      const accounts = await web3.eth.getAccounts();
-      setAccount(accounts[0]);
-      const contractInstance = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
-      setContract(contractInstance);
-      getBalance(contractInstance);
-    } else {
-      toast.error("Please install MetaMask to use this app");
+  async function getBalance() {
+    if (typeof window.ethereum !== 'undefined') {
+      await requestAccounts();
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = new ethers.Contract(contractAddress, abi, provider);
+      try {
+        const currentBalance = await contract.getBalance();
+        setBalance(currentBalance.toString());
+        toast.success('Balance updated successfully!');
+      } catch (err) {
+        toast.error('Failed to get balance: ' + err.message);
+      }
     }
-  };
+  }
 
-  const getBalance = async (contractInstance) => {
-    try {
-      const balance = await contractInstance.methods.getBalance().call();
-      setBalance(balance);
-    } catch (error) {
-      toast.error("Failed to fetch balance");
+  async function handleDeposit() {
+    if (typeof window.ethereum !== 'undefined') {
+      await requestAccounts();
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(contractAddress, abi, signer);
+      try {
+        const tx = await contract.deposit(depositAmount);
+        toast.info('Deposit transaction submitted...');
+        await tx.wait();
+        toast.success('Deposit successful!');
+        getBalance();
+        setDepositAmount('');
+      } catch (err) {
+        toast.error('Deposit failed: ' + err.message);
+      }
     }
-  };
+  }
 
-  const handleDeposit = async () => {
-    if (!amount) return toast.warn("Enter a valid amount");
-    try {
-      await contract.methods.deposit(amount).send({ from: account });
-      toast.success("Deposit successful");
-      getBalance(contract);
-    } catch (error) {
-      toast.error("Deposit failed");
+  async function handleWithdraw() {
+    if (typeof window.ethereum !== 'undefined') {
+      await requestAccounts();
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(contractAddress, abi, signer);
+      try {
+        const tx = await contract.withdraw(withdrawAmount);
+        toast.info('Withdrawal transaction submitted...');
+        await tx.wait();
+        toast.success('Withdrawal successful!');
+        getBalance();
+        setWithdrawAmount('');
+      } catch (err) {
+        toast.error('Withdrawal failed: ' + err.message);
+      }
     }
-  };
-
-  const handleWithdraw = async () => {
-    if (!amount) return toast.warn("Enter a valid amount");
-    try {
-      await contract.methods.withdraw(amount).send({ from: account });
-      toast.success("Withdrawal successful");
-      getBalance(contract);
-    } catch (error) {
-      toast.error("Withdrawal failed");
-    }
-  };
+  }
 
   return (
-    <div style={{ textAlign: "center", marginTop: "50px" }}>
-      <h1>Blockchain Assessment DApp</h1>
-      <p>Connected Account: {account}</p>
-      <p>Contract Balance: {balance} ETH</p>
-      <input
-        type="number"
-        placeholder="Enter amount"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
+    <div style={{ padding: '20px' }}>
+      <ToastContainer position="top-right" autoClose={5000} />
+      <h2>Balance: {balance}</h2>
+      <button onClick={getBalance} style={{ margin: '5px' }}>Get Balance</button>
+      <br />
+      
+      <input 
+        type="number" 
+        value={depositAmount}
+        onChange={(e) => setDepositAmount(e.target.value)}
+        placeholder="Amount to deposit"
+        style={{ margin: '5px' }}
       />
-      <button onClick={handleDeposit}>Deposit</button>
-      <button onClick={handleWithdraw}>Withdraw</button>
-      <ToastContainer />
+      <button onClick={handleDeposit} style={{ margin: '5px' }}>Deposit</button>
+      <br />
+      
+      <input 
+        type="number"
+        value={withdrawAmount}
+        onChange={(e) => setWithdrawAmount(e.target.value)}
+        placeholder="Amount to withdraw"
+        style={{ margin: '5px' }}
+      />
+      <button onClick={handleWithdraw} style={{ margin: '5px' }}>Withdraw</button>
     </div>
   );
 }
